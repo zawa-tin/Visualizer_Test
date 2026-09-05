@@ -10,6 +10,7 @@ namespace AppConfig
 	constexpr int32 SidePanelWidth = 400;
 	constexpr int32 WindowWidth = 1200;
 	constexpr int32 WindowHeight = 900;
+	constexpr int32 MaxTunaCount = 250;
 }
 
 enum class MoveDirection
@@ -124,6 +125,24 @@ public:
 		};
 	}
 
+	[[nodiscard]] Optional<Point> cellAt(const Point& scenePosition) const
+	{
+		const Point gridPosition = scenePosition - Point{
+			AppConfig::GridOffsetX,
+			AppConfig::GridOffsetY,
+		};
+		if ((gridPosition.x < 0) || (gridPosition.y < 0))
+		{
+			return none;
+		}
+
+		const Point position{
+			(gridPosition.x / AppConfig::CellSize),
+			(gridPosition.y / AppConfig::CellSize),
+		};
+		return isFloor(position) ? Optional<Point>{ position } : none;
+	}
+
 	[[nodiscard]] double right() const
 	{
 		return AppConfig::GridOffsetX + width() * AppConfig::CellSize;
@@ -235,11 +254,24 @@ public:
 
 	void fleeFrom(const Point& playerPosition, const GameMap& map)
 	{
+		const int32 distance = m_position.manhattanDistanceFrom(playerPosition);
 		if ((m_position.x != playerPosition.x && m_position.y != playerPosition.y)
-			|| (m_position.manhattanDistanceFrom(playerPosition) > 2)
-			|| (m_position == playerPosition))
+			|| (distance > 2)
+			|| (distance == 0))
 		{
 			return;
+		}
+
+		if (distance == 2)
+		{
+			const Point between{
+				(m_position.x + playerPosition.x) / 2,
+				(m_position.y + playerPosition.y) / 2,
+			};
+			if (not map.isFloor(between))
+			{
+				return;
+			}
 		}
 
 		MoveDirection front;
@@ -531,6 +563,24 @@ public:
 	SimulationDiff step(const MoveDirection direction)
 	{
 		return run(Array<MoveDirection>{ direction });
+	}
+
+	Optional<SimulationDiff> placeTuna(const Point& position)
+	{
+		if ((not m_map.isFloor(position))
+			|| (position == m_player.position())
+			|| (m_tunas.size() >= AppConfig::MaxTunaCount))
+		{
+			return none;
+		}
+
+		m_rollbackStates.push_back(makeRollbackState());
+		const int32 id = m_nextTunaId++;
+		m_tunas.emplace_back(id, position, m_tunaGraphic);
+
+		SimulationDiff diff{ m_player.position() };
+		diff.spawnedTunaIds.push_back(id);
+		return diff;
 	}
 
 	SimulationDiff run(const Array<MoveDirection>& command)
@@ -891,7 +941,7 @@ public:
 class HelpDialog
 {
 private:
-	static constexpr size_t PageCount = 3;
+	static constexpr size_t PageCount = 4;
 
 	bool m_open = false;
 	size_t m_page = 0;
@@ -903,8 +953,8 @@ private:
 
 	void drawTabs() const
 	{
-		const Array<String> labels{ U"操作", U"ログ", U"ロールバック" };
-		const Array<double> widths{ 130, 130, 210 };
+		const Array<String> labels{ U"操作", U"ログ", U"ロールバック", U"配置" };
+		const Array<double> widths{ 130, 130, 210, 130 };
 		double x = m_panel.x + 40;
 		for (size_t i = 0; i < PageCount; ++i)
 		{
@@ -946,12 +996,24 @@ private:
 				U"● それぞれのボタンからログをクリップボードへ\n"
 				U"    コピーできます。";
 			break;
-		default:
+		case 2:
 			heading = U"操作をロールバックする";
 			body =
 				U"● Ctrl + Z で直前の操作を1回分戻せます。\n\n"
 				U"● 入力欄から複数歩をまとめて実行した場合は、\n"
 				U"    その移動全体が1回分の操作として戻ります。\n\n";
+			break;
+		default:
+			heading = U"マグロを追加する";
+			body =
+				U"※ この機能はビジュアライザ特有の機能です。\n\n"
+				U"● 床マスを右クリックすると、そのマスに\n"
+				U"    マグロを1匹追加できます。\n\n"
+				U"● プレイヤーがいるマスには配置できません。\n"
+				U"    マグロは同じマスに複数配置できます。\n\n"
+				U"● 盤面上のマグロは最大250匹です。\n\n"
+				U"● 追加したマグロにも番号が付き、差分ログに\n"
+				U"    記録されます。移動歩数には数えません。";
 			break;
 		}
 
@@ -1084,6 +1146,35 @@ void ProcessKeyboardInput(Simulation& simulation, InputLogger& logger, DiffLogge
 	}
 }
 
+void ProcessTunaPlacement(
+	Simulation& simulation,
+	InputLogger& logger,
+	DiffLogger& diffLogger)
+{
+	if (not MouseR.down())
+	{
+		return;
+	}
+
+	const Optional<Point> position = simulation.map().cellAt(Cursor::Pos());
+	if (not position)
+	{
+		return;
+	}
+
+	logger.saveRollbackState();
+	diffLogger.saveRollbackState();
+	if (const Optional<SimulationDiff> diff = simulation.placeTuna(*position))
+	{
+		diffLogger.addDiff(*diff, simulation.tunas());
+	}
+	else
+	{
+		logger.rollback();
+		diffLogger.rollback();
+	}
+}
+
 bool ProcessSubmittedCommand(
 	const String& command,
 	Simulation& simulation,
@@ -1167,6 +1258,11 @@ void Main()
 		{
 			inputer.update(false);
 			ProcessRollback(simulation, logger, diffLogger);
+		}
+		else if (not helpIsOpen && acceptsInput && MouseR.down())
+		{
+			inputer.update(false);
+			ProcessTunaPlacement(simulation, logger, diffLogger);
 		}
 		else if (not helpIsOpen)
 		{
