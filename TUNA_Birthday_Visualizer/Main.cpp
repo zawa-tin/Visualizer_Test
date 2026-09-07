@@ -787,8 +787,19 @@ private:
 		{
 			text += Format(
 				tuna.id(), U' ',
-				tuna.position().x, U' ',
-				tuna.position().y, U'\n');
+				tuna.position().y, U' ',
+				tuna.position().x, U'\n');
+		}
+	}
+
+	static void AppendInitialTunas(String& text, const Array<Tuna>& tunas)
+	{
+		text += Format(tunas.size(), U'\n');
+		for (const Tuna& tuna : tunas)
+		{
+			text += Format(
+				tuna.position().y, U' ',
+				tuna.position().x, U'\n');
 		}
 	}
 
@@ -811,8 +822,8 @@ public:
 			MoveLimit, U' ',
 			map.height(), U' ',
 			map.width(), U' ',
-			playerPosition.x, U' ',
-			playerPosition.y, U'\n');
+			playerPosition.y, U' ',
+			playerPosition.x, U'\n');
 
 		for (const String& row : map.rows())
 		{
@@ -820,13 +831,13 @@ public:
 			m_visibleText += U'\n';
 		}
 
-		AppendTunas(m_visibleText, simulation.tunas());
+		AppendInitialTunas(m_visibleText, simulation.tunas());
 	}
 
 	void addDiff(const SimulationDiff& diff, const Array<Tuna>& tunas)
 	{
 		String latestDiff;
-		latestDiff += Format(diff.playerPosition.x, U' ', diff.playerPosition.y, U'\n');
+		latestDiff += Format(diff.playerPosition.y, U' ', diff.playerPosition.x, U'\n');
 		latestDiff += Format(diff.spawnedTunaIds.size(), U'\n');
 		AppendIdLine(latestDiff, diff.spawnedTunaIds);
 		latestDiff += Format(diff.caughtTunaIds.size(), U'\n');
@@ -858,7 +869,7 @@ public:
 
 	void updateCopyButton() const
 	{
-		if (SimpleGUI::Button(U"差分ログをクリップボードにコピー", m_copyButtonPosition))
+		if (SimpleGUI::Button(U"ジャッジ出力をクリップボードにコピー", m_copyButtonPosition))
 		{
 			Clipboard::SetText(m_visibleText);
 		}
@@ -953,7 +964,7 @@ private:
 
 	void drawTabs() const
 	{
-		const Array<String> labels{ U"操作", U"ログ", U"ロールバック", U"配置" };
+		const Array<String> labels{ U"操作", U"出力", U"ロールバック", U"配置" };
 		const Array<double> widths{ 130, 130, 210, 130 };
 		double x = m_panel.x + 40;
 		for (size_t i = 0; i < PageCount; ++i)
@@ -986,11 +997,11 @@ private:
 				U"    例:  RRDDLU  と入力して「実行」を押します。";
 			break;
 		case 1:
-			heading = U"二つのログ";
+			heading = U"Input ログとジャッジ出力";
 			body =
 				U"● Input ログ\n"
 				U"    実行した移動コマンドを記録します。\n\n"
-				U"● 差分ログ\n"
+				U"● ジャッジ出力\n"
 				U"    プレイヤーの位置、出現・捕獲した魚、\n"
 				U"    現在の魚の位置を表示します。\n\n"
 				U"● それぞれのボタンからログをクリップボードへ\n"
@@ -1012,7 +1023,7 @@ private:
 				U"● プレイヤーがいるマスには配置できません。\n"
 				U"    マグロは同じマスに複数配置できます。\n\n"
 				U"● 盤面上のマグロは最大250匹です。\n\n"
-				U"● 追加したマグロにも番号が付き、差分ログに\n"
+				U"● 追加したマグロにも番号が付き、ジャッジ出力に\n"
 				U"    記録されます。移動歩数には数えません。";
 			break;
 		}
