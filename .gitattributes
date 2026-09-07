@@ -70,10 +70,6 @@
 *.zstdcmp binary
 *.png binary
 
-# This text file is embedded before binary engine assets. Keep its byte length
-# stable across platforms so the generated preload package is reproducible.
-TUNA_Birthday_Visualizer/resources/engine/soundfont/GMGSx.sf2.txt text eol=lf
-
 # Keep generated text assets consistent between Windows and GitHub Pages.
 docs/*.html text eol=lf
 docs/*.js text eol=lf
