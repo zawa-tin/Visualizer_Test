@@ -274,6 +274,10 @@
       </div>
     </div>
     <script>
+      // Bump this value whenever the Web build artifacts are replaced.
+      // It keeps the generated JavaScript, WebAssembly, and preload data on
+      // the same version even when an older response remains cached.
+      const webAssetVersion = "20260908-1";
       const appContainer = document.querySelector("#app");
       const progressElement = document.querySelector("#progress");
       const canvasContainerElement = document.querySelector("#canvas-container");
@@ -375,6 +379,9 @@
       }
 
       const Options = {
+        locateFile: function (path, prefix) {
+          return `${prefix}${path}?v=${encodeURIComponent(webAssetVersion)}`;
+        },
         preRun: [],
         postRun: [ doResize, onAudioInit ],
         onAbort: function (e) {
@@ -452,8 +459,15 @@
       }
       Options["setStatus"]("Downloading...");
     </script>
-    {{{ SCRIPT }}}
+    <template id="generated-script">
+      {{{ SCRIPT }}}
+    </template>
     <script>
+      const generatedScript = document.querySelector("#generated-script").content.querySelector("script");
+      const appScript = document.createElement("script");
+      appScript.async = true;
+      appScript.src = `${generatedScript.getAttribute("src")}?v=${encodeURIComponent(webAssetVersion)}`;
+
       if (window != window.parent) {
         var overlay = document.querySelector(".playground-overlay");
         overlay.hidden = false;
@@ -466,11 +480,14 @@
           Module(Options);
         });
       } else {
-        document.querySelector("script[async]").addEventListener('load', function() {
+        appScript.addEventListener('load', function() {
           Options.canvas.hidden = false;
           Module(Options);
         });
       }
+
+      appScript.addEventListener('error', onRuntimeError);
+      document.body.appendChild(appScript);
     </script>
   </body>
 </html>
