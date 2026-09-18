@@ -236,6 +236,27 @@ private:
 		return none;
 	}
 
+	[[nodiscard]] Optional<Point> findDeadEndDestination(
+		const MoveDirection direction,
+		const GameMap& map) const
+	{
+		const Point delta = DirectionDelta(direction);
+		Point candidate = m_position + delta;
+		if (not map.isFloor(candidate))
+		{
+			return none;
+		}
+
+		Point destination = candidate;
+		while (map.isFloor(candidate + delta))
+		{
+			candidate += delta;
+			destination = candidate;
+		}
+
+		return destination;
+	}
+
 public:
 	Tuna(const int32 id, const Point& position, const Texture& graphic)
 		: m_id{ id }
@@ -292,9 +313,26 @@ public:
 			front = MoveDirection::Down;
 		}
 
-		for (const MoveDirection direction : { front, TurnRight(front), TurnLeft(front) })
+		const Array<MoveDirection> candidates{
+			front,
+			TurnRight(front),
+			TurnLeft(front),
+		};
+
+		// 従来どおり、曲がれる床マスを3方向の優先順で探す。
+		for (const MoveDirection direction : candidates)
 		{
 			if (const Optional<Point> destination = findEscapeDestination(direction, playerPosition, map))
+			{
+				m_position = *destination;
+				return;
+			}
+		}
+
+		// 見つからなければ、最初に1マス以上進める方向の終端まで進む。
+		for (const MoveDirection direction : candidates)
+		{
+			if (const Optional<Point> destination = findDeadEndDestination(direction, map))
 			{
 				m_position = *destination;
 				return;
